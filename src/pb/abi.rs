@@ -81,8 +81,8 @@ pub struct Kvpair {
 pub struct Hget {
     #[prost(string, tag = "1")]
     pub table: ::prost::alloc::string::String,
-    #[prost(string, repeated, tag = "2")]
-    pub keys: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(string, tag = "2")]
+    pub key: ::prost::alloc::string::String,
 }
 /// 从 table 中获取所有的 kvpair
 #[derive(PartialOrd, Clone, PartialEq, ::prost::Message)]

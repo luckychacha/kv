@@ -14,5 +14,5 @@ fn main() {
         .expect("cargo fmt failed");
 
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changede=abi.proto");
+    println!("cargo:rerun-if-changed=abi.proto");
 }
