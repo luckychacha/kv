@@ -5,6 +5,7 @@ use kv::{CommandRequest, CommandResponse};
 use tokio::net::TcpStream;
 use tracing::info;
 
+// 这段代码连接服务器的 9527 端口，发送一个 HSET 命令出去，然后等待服务器的响应。
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
