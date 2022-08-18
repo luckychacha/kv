@@ -1,3 +1,5 @@
+mod memory;
+pub use memory::MemTable;
 use crate::{KvError, Kvpair, Value};
 
 /// 对存储的抽象，我们不关心数据在哪儿，但需要定义外接如何和存储打交道
@@ -14,4 +16,24 @@ pub trait Storage {
     fn get_all(&self, table: &str) -> Result<Vec<Kvpair>, KvError>;
     /// 遍历 HashTable，返回 kv pair 的 Iterator
     fn get_iter(&self, table: &str) -> Result<Box<dyn Iterator<Item = Kvpair>>, KvError>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn memtable_basic_interface_should_work() {
+        let store = MemTable::new();
+        test_basi_interface(store);
+    }
+
+    fn test_basi_interface(store: impl Storage) {
+        let v = store.set("t1", "hello".into(), "world".into());
+
+        assert!(v.unwrap().is_none());
+        let v1 = store.set("t1", "hello".into(), "world1".into());
+        assert_eq!(v1, Ok(Some("world".into())));
+
+    }
 }

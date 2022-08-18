@@ -1,8 +1,8 @@
 use async_prost::AsyncProstStream;
+use futures::prelude::*;
 use kv::{CommandRequest, CommandResponse};
 use tokio::net::TcpListener;
 use tracing::info;
-use futures::prelude::*;
 
 // 在这段代码里，服务器监听 9527 端口，对任何客户端的请求，一律返回 status = 404，message 是 “Not found” 的响应。
 #[tokio::main]
@@ -16,8 +16,9 @@ async fn main() -> anyhow::Result<()> {
         let (stream, addr) = listener.accept().await?;
         info!("Client {:?} connected", addr);
         tokio::spawn(async move {
-            let mut stream = AsyncProstStream::<_, CommandRequest, CommandResponse, _>::from(stream).for_async();
-            
+            let mut stream =
+                AsyncProstStream::<_, CommandRequest, CommandResponse, _>::from(stream).for_async();
+
             while let Some(Ok(msg)) = stream.next().await {
                 info!("Got a new command: {:?}", msg);
                 let mut resp = CommandResponse::default();
