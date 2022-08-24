@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum KvError {
     #[error("Command is invalid: `{0}`")]
     InvalidCommand(String),
