@@ -2,31 +2,17 @@ mod command_service;
 
 use std::sync::Arc;
 
-use crate::{command_request::RequestData, CommandRequest, CommandResponse, KvError, Storage, MemTable};
+use tracing::debug;
+
+use crate::{
+    command_request::RequestData, CommandRequest, CommandResponse, KvError, Kvpair, MemTable,
+    Storage, Value,
+};
 
 // 对 Command 的处理的抽象
 pub trait CommandService {
     // 处理 Command，返回 Response
     fn execute(self, store: &impl Storage) -> CommandResponse;
-}
-
-
-// Service 数据结构
-pub struct Service<Store = MemTable> {
-    inner: Arc<ServiceInner<Store>>,
-}
-
-impl<Store: Storage> Service<Store> {
-    pub fn new(store: Store) -> Self {
-        Self {
-            inner: Arc::new( ServiceInner::new(store) ),
-        }
-    }
-}
-
-// Service 内部数据结构
-pub struct ServiceInner<Store> {
-    store: Store,
 }
 
 // 从 Request 中得到 Response，目前处理 HGET/HGETALL/HSET
@@ -40,13 +26,79 @@ pub fn dispatch(cmd: CommandRequest, store: &impl Storage) -> CommandResponse {
     }
 }
 
+// 默认泛型类型参数是 MemTable
+pub struct Service<Store: Storage = MemTable> {
+    inner: Arc<ServiceInner<Store>>,
+}
+
+impl<Store: Storage> Clone for Service<Store> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: Arc::clone(&self.inner),
+        }
+    }
+}
+
+impl<Store: Storage> Service<Store> {
+    pub fn new(store: Store) -> Self {
+        Self {
+            inner: Arc::new(ServiceInner { store }),
+        }
+    }
+
+    pub fn execute(&self, cmd: CommandRequest) -> CommandResponse {
+        debug!("cmd is: {:?}", cmd);
+        let res = dispatch(cmd, &self.inner.store);
+        debug!("cmd dispatch result is: {:?}", res);
+        res
+    }
+}
+
+struct ServiceInner<Storage> {
+    store: Storage,
+}
+
 #[cfg(test)]
 mod tests {
+    use std::thread;
+
     use super::*;
     use crate::{MemTable, Value};
 
     #[test]
     fn service_should_works() {
-        let service = Service::new(MemTable::new())
+        // 我们需要一个 service 结构至少包含 Storage
+        let service = Service::new(MemTable::new());
+        // service 可以运行在多线程环境下，它的 clone 应该是轻量级的
+        let cloned = service.clone();
+        // 创建一个线程，在 table t1 中写入 k1, v1
+        let handle = thread::spawn(move || {
+            let res = cloned.execute(CommandRequest::new_hset("t1", "k1", "v1".into()));
+            assert_res_ok(res, &[Value::default()], &[]);
+        });
+        handle.join().unwrap();
+
+        // 在当前线程下读取 table t1 的 k1，应该返回 v1
+        let res = service.execute(CommandRequest::new_hget("t1", "k1"));
+        assert_res_ok(res, &["v1".into()], &[]);
     }
+}
+
+// 需要 pub 才能让这个方法被 command_service 调用
+#[cfg(test)]
+pub fn assert_res_ok(mut res: CommandResponse, values: &[Value], pairs: &[Kvpair]) {
+    res.pairs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    assert_eq!(res.status, 200);
+    assert_eq!(res.message, "");
+    assert_eq!(res.values, values);
+    assert_eq!(res.pairs, pairs);
+}
+
+#[cfg(test)]
+pub fn assert_res_error(res: CommandResponse, code: u32, msg: &str) {
+    assert_eq!(res.status, code);
+    assert!(res.message.contains(msg));
+    assert_eq!(res.values, &[]);
+    assert_eq!(res.pairs, &[]);
 }

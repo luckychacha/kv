@@ -1,6 +1,6 @@
 use crate::{
-    dispatch, CommandRequest, CommandResponse, CommandService, Hget, KvError, Kvpair, MemTable,
-    Storage, Value, Hgetall, Hset,
+    dispatch, CommandRequest, CommandResponse, CommandService, Hget, Hgetall, Hset, KvError,
+    Kvpair, MemTable, Storage, Value,
 };
 
 impl CommandService for Hget {
@@ -25,12 +25,10 @@ impl CommandService for Hgetall {
 impl CommandService for Hset {
     fn execute(self, store: &impl Storage) -> CommandResponse {
         match self.pair {
-            Some(v) => {
-                match store.set(&self.table, v.key, v.value.unwrap_or_default()) {
-                    Ok(Some(v)) => v.into(),
-                    Ok(None) => Value::default().into(),
-                    Err(e) => e.into(),
-                }
+            Some(v) => match store.set(&self.table, v.key, v.value.unwrap_or_default()) {
+                Ok(Some(v)) => v.into(),
+                Ok(None) => Value::default().into(),
+                Err(e) => e.into(),
             },
             None => KvError::InvalidCommand(format!("{:?}", self)).into(),
         }
@@ -39,6 +37,8 @@ impl CommandService for Hset {
 
 #[cfg(test)]
 mod tests {
+    use crate::{assert_res_error, assert_res_ok};
+
     use super::*;
 
     #[test]
@@ -78,7 +78,7 @@ mod tests {
             CommandRequest::new_hset("t1", "k1", 9.into()),
         ];
         for command in commands {
-            dispatch( command, &store);
+            dispatch(command, &store);
         }
 
         let hget_all_command = CommandRequest::new_hget_all("t1");
@@ -91,22 +91,5 @@ mod tests {
         ];
 
         assert_res_ok(res, &[], &pairs);
-
-    }
-
-    fn assert_res_ok(mut res: CommandResponse, values: &[Value], pairs: &[Kvpair]) {
-        res.pairs.sort_by(|a, b| a.partial_cmp(b).unwrap());
-
-        assert_eq!(res.status, 200);
-        assert_eq!(res.message, "");
-        assert_eq!(res.values, values);
-        assert_eq!(res.pairs, pairs);
-    }
-
-    fn assert_res_error(res: CommandResponse, code: u32, msg: &str) {
-        assert_eq!(res.status, code);
-        assert!(res.message.contains(msg));
-        assert_eq!(res.values, &[]);
-        assert_eq!(res.pairs, &[]);
     }
 }
