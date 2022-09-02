@@ -1,6 +1,6 @@
 use async_prost::AsyncProstStream;
 use futures::prelude::*;
-use kv::{CommandRequest, CommandResponse, Service, MemTable};
+use kv::{CommandRequest, CommandResponse, MemTable, Service};
 use tokio::net::TcpListener;
 use tracing::info;
 
@@ -14,17 +14,16 @@ async fn main() -> anyhow::Result<()> {
     info!("Start listening on {}", addr);
 
     let service = Service::new(MemTable::new());
-    
+
     loop {
         let (stream, addr) = listener.accept().await?;
         info!("Client {:?} connected", addr);
         let svc = service.clone();
-        
+
         tokio::spawn(async move {
             let mut stream =
                 AsyncProstStream::<_, CommandRequest, CommandResponse, _>::from(stream).for_async();
 
-            
             while let Some(Ok(msg)) = stream.next().await {
                 info!("Got a new command: {:?}", msg);
                 let resp = svc.execute(msg);
