@@ -57,7 +57,12 @@ impl Storage for MemTable {
         &self,
         table: &str,
     ) -> Result<Box<dyn Iterator<Item = crate::Kvpair>>, crate::KvError> {
-        todo!()
+        let table = self.get_or_create_table(table);
+        let iter = table.iter().map(|v| {
+            Kvpair::new(v.key(), v.value().clone());
+        });
+        Ok(Box::new(iter))
+
     }
 }
 

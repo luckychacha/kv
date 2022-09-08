@@ -35,4 +35,10 @@ mod tests {
         let v1 = store.set("t1", "hello".into(), "world1".into());
         assert_eq!(v1, Ok(Some("world".into())));
     }
+
+    #[test]
+    fn memtable_iter_should_work() {
+        let store = MemTable::new();
+        test_get_iter(store);
+    }
 }
