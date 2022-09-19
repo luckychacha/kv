@@ -9,10 +9,38 @@ use crate::{
     Storage, Value,
 };
 
-// 对 Command 的处理的抽象
+/// 对 Command 的处理的抽象
 pub trait CommandService {
     // 处理 Command，返回 Response
     fn execute(self, store: &impl Storage) -> CommandResponse;
+}
+
+/// 事件通知【不可变事件】
+pub trait Notify<Arg> {
+    fn notify(&self, arg: &Arg);
+}
+
+/// 事件通知【可变事件】
+pub trait NotifyMut<Arg> {
+    fn notify(&self, arg: &mut Arg);
+}
+
+impl<Arg> Notify<Arg> for Vec<fn(&Arg)> {
+    #[inline]
+    fn notify(&self, arg: &Arg) {
+        for f in self {
+            f(arg)
+        }
+    }
+}
+
+impl<Arg> NotifyMut<Arg> for Vec<fn(&mut Arg)> {
+    #[inline]
+    fn notify(&self, arg: &mut Arg) {
+        for f in self {
+            f(arg)
+        }
+    }
 }
 
 // 从 Request 中得到 Response，目前处理 HGET/HGETALL/HSET
@@ -40,26 +68,67 @@ impl<Store: Storage> Clone for Service<Store> {
 }
 
 impl<Store: Storage> Service<Store> {
-    pub fn new(store: Store) -> Self {
-        Self {
-            inner: Arc::new(ServiceInner { store }),
-        }
-    }
-
     pub fn execute(&self, cmd: CommandRequest) -> CommandResponse {
         debug!("cmd is: {:?}", cmd);
-        let res = dispatch(cmd, &self.inner.store);
+        self.inner.on_received.notify(&cmd);
+        let mut res = dispatch(cmd, &self.inner.store);
         debug!("cmd dispatch result is: {:?}", res);
+        self.inner.on_executed.notify(&res);
+
+        self.inner.on_before_send.notify(&mut res);
+
+        if !self.inner.on_before_send.is_empty() {
+            debug!("Modified response: {:?}", res);
+        }
         res
     }
 }
 
-struct ServiceInner<Storage> {
-    store: Storage,
+pub struct ServiceInner<Store> {
+    store: Store,
     on_received: Vec<fn(&CommandRequest)>,
     on_executed: Vec<fn(&CommandResponse)>,
-    on_before_send: Vec<fn(&CommandResponse)>,
+    on_before_send: Vec<fn(&mut CommandResponse)>,
     on_after_send: Vec<fn()>,
+}
+
+impl<Store: Storage> ServiceInner<Store> {
+    pub fn new(store: Store) -> Self {
+        Self {
+            store,
+            on_received: Vec::new(),
+            on_executed: Vec::new(),
+            on_before_send: Vec::new(),
+            on_after_send: Vec::new(),
+        }
+    }
+
+    pub fn fn_received(mut self, f: fn(&CommandRequest)) -> Self {
+        self.on_received.push(f);
+        self
+    }
+    pub fn fn_executed(mut self, f: fn(&CommandResponse)) -> Self {
+        self.on_executed.push(f);
+        self
+    }
+    pub fn fn_before_send(mut self, f: fn(&mut CommandResponse)) -> Self {
+        self.on_before_send.push(f);
+        self
+    } 
+    pub fn fn_after_send(mut self, f: fn()) -> Self {
+        self.on_after_send.push(f);
+        self
+        
+    }
+}
+
+
+impl<Store: Storage> From<ServiceInner<Store>> for Service<Store> {
+    fn from(inner: ServiceInner<Store>) -> Self {
+        Self {
+            inner: Arc::new(inner),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -74,7 +143,7 @@ mod tests {
     #[test]
     fn service_should_works() {
         // 我们需要一个 service 结构至少包含 Storage
-        let service = Service::new(MemTable::new());
+        let service: Service = ServiceInner::new(MemTable::default()).into();
         // service 可以运行在多线程环境下，它的 clone 应该是轻量级的
         let cloned = service.clone();
         // 创建一个线程，在 table t1 中写入 k1, v1
@@ -107,7 +176,7 @@ mod tests {
             info!("Data is send.");
         }
 
-        let service = ServiceInner::new(MemTable::default())
+        let service: Service = ServiceInner::new(MemTable::default())
         .fn_received(|_: &CommandRequest| {})
         .fn_received(b)
         .fn_executed(c)
