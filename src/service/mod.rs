@@ -114,14 +114,12 @@ impl<Store: Storage> ServiceInner<Store> {
     pub fn fn_before_send(mut self, f: fn(&mut CommandResponse)) -> Self {
         self.on_before_send.push(f);
         self
-    } 
+    }
     pub fn fn_after_send(mut self, f: fn()) -> Self {
         self.on_after_send.push(f);
         self
-        
     }
 }
-
 
 impl<Store: Storage> From<ServiceInner<Store>> for Service<Store> {
     fn from(inner: ServiceInner<Store>) -> Self {
@@ -133,8 +131,8 @@ impl<Store: Storage> From<ServiceInner<Store>> for Service<Store> {
 
 #[cfg(test)]
 mod tests {
-    use std::thread;
     use http::StatusCode;
+    use std::thread;
     use tracing::info;
 
     use super::*;
@@ -177,21 +175,18 @@ mod tests {
         }
 
         let service: Service = ServiceInner::new(MemTable::default())
-        .fn_received(|_: &CommandRequest| {})
-        .fn_received(b)
-        .fn_executed(c)
-        .fn_before_send(d)
-        .fn_after_send(e)
-        .into();
+            .fn_received(|_: &CommandRequest| {})
+            .fn_received(b)
+            .fn_executed(c)
+            .fn_before_send(d)
+            .fn_after_send(e)
+            .into();
 
         let res = service.execute(CommandRequest::new_hset("t1", "k1", "v1".into()));
         assert_eq!(res.status, StatusCode::CREATED.as_u16() as _);
         assert_eq!(res.message, "");
         assert_eq!(res.values, vec![Value::default()]);
-
     }
-
-
 }
 
 // 需要 pub 才能让这个方法被 command_service 调用

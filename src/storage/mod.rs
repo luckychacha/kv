@@ -1,4 +1,5 @@
 mod memory;
+pub mod sleddb;
 use crate::{KvError, Kvpair, Value};
 pub use memory::MemTable;
 
@@ -24,16 +25,14 @@ pub struct StorageIter<T> {
 
 impl<T> StorageIter<T> {
     pub fn new(data: T) -> Self {
-        Self {
-            data
-        }
+        Self { data }
     }
 }
 
 impl<T> Iterator for StorageIter<T>
 where
     T: Iterator,
-    T::Item: Into<Kvpair>
+    T::Item: Into<Kvpair>,
 {
     type Item = Kvpair;
 
