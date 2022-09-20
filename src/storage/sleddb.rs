@@ -1,9 +1,9 @@
 use sled::{Db, IVec};
-use std::path::Path;
 use std::convert::TryInto;
+use std::path::Path;
 use std::str;
 
-use crate::{Storage, Kvpair, KvError};
+use crate::{KvError, Kvpair, Storage, Value};
 
 #[derive(Debug)]
 pub struct SledDb(Db);
@@ -42,11 +42,20 @@ impl Storage for SledDb {
         let result = self.0.get(name.as_bytes())?.map(|v| v.as_ref().try_into());
 
         flip(result)
-
     }
 
-    fn set(&self, table: &str, key: String, value: crate::Value) -> Result<Option<crate::Value>, crate::KvError> {
-        todo!()
+    fn set(
+        &self,
+        table: &str,
+        key: impl Into<String>,
+        value: impl Into<Value>,
+    ) -> Result<Option<crate::Value>, crate::KvError> {
+        let key = key.into();
+        let name = SledDb::get_full_key(table, &key);
+        let data: Vec<u8> = value.into().try_into()?;
+
+        let result = self.0.insert(name, data)?.map(|v| v.as_ref().try_into());
+        flip(result)
     }
 
     fn contains(&self, table: &str, key: &str) -> Result<bool, crate::KvError> {
@@ -61,7 +70,10 @@ impl Storage for SledDb {
         todo!()
     }
 
-    fn get_iter(&self, table: &str) -> Result<Box<dyn Iterator<Item = crate::Kvpair>>, crate::KvError> {
+    fn get_iter(
+        &self,
+        table: &str,
+    ) -> Result<Box<dyn Iterator<Item = crate::Kvpair>>, crate::KvError> {
         todo!()
     }
 }
@@ -72,7 +84,7 @@ impl From<Result<(IVec, IVec), sled::Error>> for Kvpair {
             Ok((k, v)) => match v.as_ref().try_into() {
                 Ok(v) => Kvpair::new(ivec_to_key(k.as_ref()), v),
                 Err(_) => Kvpair::default(),
-            }
+            },
             _ => Kvpair::default(),
         }
     }

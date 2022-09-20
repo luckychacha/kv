@@ -1,5 +1,6 @@
 use abi::*;
 use http::StatusCode;
+use prost::Message;
 
 use crate::{command_request::RequestData, KvError};
 
@@ -119,5 +120,24 @@ impl From<Vec<Kvpair>> for CommandResponse {
 impl From<(String, Value)> for Kvpair {
     fn from(data: (String, Value)) -> Self {
         Kvpair::new(data.0, data.1)
+    }
+}
+
+impl TryFrom<&[u8]> for Value {
+    type Error = KvError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let msg = Value::decode(value)?;
+        Ok(msg)
+    }
+}
+
+impl TryFrom<Value> for Vec<u8> {
+    type Error = KvError;
+
+    fn try_from(v: Value) -> Result<Self, Self::Error> {
+        let mut buf = Vec::with_capacity(v.encoded_len());
+        v.encode(&mut buf)?;
+        Ok(buf)
     }
 }
