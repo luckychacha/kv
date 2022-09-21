@@ -1,7 +1,8 @@
 mod memory;
-pub mod sleddb;
+mod sleddb;
 use crate::{KvError, Kvpair, Value};
 pub use memory::MemTable;
+pub use sleddb::SledDb;
 
 /// 对存储的抽象，我们不关心数据在哪儿，但需要定义外接如何和存储打交道
 pub trait Storage {
@@ -48,6 +49,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use tempfile::tempdir;
+
     use super::*;
 
     #[test]
@@ -57,10 +60,10 @@ mod tests {
     }
 
     fn test_basi_interface(store: impl Storage) {
-        let v = store.set("t1", "hello".into(), "world".into());
+        let v = store.set("t1", "hello", "world");
 
         assert!(v.unwrap().is_none());
-        let v1 = store.set("t1", "hello".into(), "world1".into());
+        let v1 = store.set("t1", "hello", "world1");
         assert_eq!(v1, Ok(Some("world".into())));
     }
 
@@ -71,8 +74,8 @@ mod tests {
     }
 
     fn test_get_iter(store: impl Storage) {
-        store.set("t1", "k1".into(), "v1".into());
-        store.set("t1", "k2".into(), "v2".into());
+        store.set("t1", "k1", "v1").unwrap();
+        store.set("t1", "k2", "v2").unwrap();
 
         let mut table = store.get_iter("t1").unwrap().collect::<Vec<_>>();
         table.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -84,5 +87,40 @@ mod tests {
                 Kvpair::new("k2", "v2".into()),
             ]
         )
+    }
+
+    fn test_get_all(store: impl Storage) {
+        store.set("t2", "k1", "v1").unwrap();
+        store.set("t2", "k2", "v2").unwrap();
+        let mut data = store.get_all("t2").unwrap();
+        data.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        assert_eq!(
+            data,
+            vec![
+                Kvpair::new("k1", "v1".into()),
+                Kvpair::new("k2", "v2".into()),
+            ]
+        )
+    }
+
+    #[test]
+    fn sleddb_basic_interface_should_work() {
+        let dir = tempdir().unwrap();
+        let store = SledDb::new(dir);
+        test_basi_interface(store);
+    }
+
+    #[test]
+    fn sleddb_get_all_should_work() {
+        let dir = tempdir().unwrap();
+        let store = SledDb::new(dir);
+        test_get_all(store);
+    }
+
+    #[test]
+    fn sleddb_iter_should_work() {
+        let dir = tempdir().unwrap();
+        let store = SledDb::new(dir);
+        test_get_iter(store);
     }
 }

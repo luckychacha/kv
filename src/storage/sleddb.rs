@@ -3,7 +3,7 @@ use std::convert::TryInto;
 use std::path::Path;
 use std::str;
 
-use crate::{KvError, Kvpair, Storage, Value};
+use crate::{KvError, Kvpair, Storage, StorageIter, Value};
 
 #[derive(Debug)]
 pub struct SledDb(Db);
@@ -14,7 +14,7 @@ impl SledDb {
     }
 
     fn get_full_key(table: &str, key: &str) -> String {
-        format!("{}: {}", table, key)
+        format!("{}:{}", table, key)
     }
 
     fn get_table_prefix(table: &str) -> String {
@@ -59,22 +59,31 @@ impl Storage for SledDb {
     }
 
     fn contains(&self, table: &str, key: &str) -> Result<bool, crate::KvError> {
-        todo!()
+        let name = SledDb::get_full_key(table, key);
+
+        Ok(self.0.contains_key(name)?)
     }
 
     fn del(&self, table: &str, key: &str) -> Result<Option<crate::Value>, crate::KvError> {
-        todo!()
+        let name = SledDb::get_full_key(table, key);
+        let result = self.0.remove(name)?.map(|v| v.as_ref().try_into());
+
+        flip(result)
     }
 
     fn get_all(&self, table: &str) -> Result<Vec<crate::Kvpair>, crate::KvError> {
-        todo!()
+        let prefix = SledDb::get_table_prefix(table);
+        let result = self.0.scan_prefix(prefix).map(|v| v.into()).collect();
+        Ok(result)
     }
 
     fn get_iter(
         &self,
         table: &str,
     ) -> Result<Box<dyn Iterator<Item = crate::Kvpair>>, crate::KvError> {
-        todo!()
+        let prefix = SledDb::get_table_prefix(table);
+        let iter = StorageIter::new(self.0.scan_prefix(prefix));
+        Ok(Box::new(iter))
     }
 }
 
